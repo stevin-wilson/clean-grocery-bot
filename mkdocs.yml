@@ -1,0 +1,54 @@
+site_name: clean-grocery-bot
+repo_url: https://github.com/stevin-wilson/clean-grocery-bot
+site_url: https://stevin-wilson.github.io/clean-grocery-bot
+site_description: A serverless Telegram chatbot that helps you make cleaner food choices while grocery shopping. Search by product category and get AI-powered recommendations ranked by ingredient cleanliness — avoiding seed oils, artificial additives, and ultra-processed foods — based on your own configurable dietary preferences.
+site_author: Stevin Wilson
+edit_uri: edit/main/docs/
+repo_name: stevin-wilson/clean-grocery-bot
+copyright: Maintained by <a href="https://stevin-wilson.com">Florian</a>.
+
+nav:
+  - Home: index.md
+  - Modules: modules.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          setup_commands:
+            - import sys
+            - sys.path.append('../')
+theme:
+  name: material
+  feature:
+    tabs: true
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/stevin-wilson/clean-grocery-bot
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/clean-grocery-bot
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
