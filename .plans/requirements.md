@@ -18,12 +18,12 @@ The project is also designed to be openly reproducible: code and setup instructi
 
 ## 2. Users & Context of Use
 
-| Field | Detail |
-|---|---|
-| Primary users | Adults in a single family |
-| Usage context | While physically shopping in a grocery store |
-| Interface | Telegram chat app (iOS / Android) |
-| Scale | Personal / family use only — not a public product |
+| Field         | Detail                                            |
+| ------------- | ------------------------------------------------- |
+| Primary users | Adults in a single family                         |
+| Usage context | While physically shopping in a grocery store      |
+| Interface     | Telegram chat app (iOS / Android)                 |
+| Scale         | Personal / family use only — not a public product |
 
 ---
 
@@ -100,14 +100,14 @@ The project uses a `src/` layout compatible with Poetry conventions — the pack
 
 ### 5.1 Components
 
-| Component | Service | Purpose |
-|---|---|---|
-| Chat interface | Telegram Bot (webhook) | User-facing interface |
-| Compute | AWS Lambda (Python) | Bot logic and orchestration |
-| API trigger | AWS API Gateway | Receives Telegram webhook POSTs (throttled) |
-| AI / LLM | AWS Bedrock — Claude Haiku | Ingredient analysis and ranking |
-| Food data | Open Food Facts API | Product and ingredient database (country-filtered) |
-| Secrets | AWS Parameter Store | Telegram token, webhook secret, allowed chat IDs |
+| Component      | Service                                      | Purpose                                                    |
+| -------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| Chat interface | Telegram Bot (webhook)                       | User-facing interface                                      |
+| Compute        | AWS Lambda (Python)                          | Bot logic and orchestration                                |
+| API trigger    | AWS API Gateway                              | Receives Telegram webhook POSTs (throttled)                |
+| AI / LLM       | AWS Bedrock — Claude Haiku                   | Ingredient analysis and ranking                            |
+| Food data      | Open Food Facts API                          | Product and ingredient database (country-filtered)         |
+| Secrets        | AWS Parameter Store                          | Telegram token, webhook secret, allowed chat IDs           |
 | Dietary config | `dietary_preference_config.json` (repo root) | Dietary preferences, cleanliness criteria, country setting |
 
 ### 5.2 Request Flow
@@ -243,11 +243,13 @@ The following is the default configuration. It reflects the deploying preference
 ### 6.3 Common Customizations
 
 **Changing country** — to show products available in the UK:
+
 ```json
 "market": { "country": "GB", "country_name": "United Kingdom" }
 ```
 
 **Adding dietary restrictions** — to exclude dairy and gluten from all results:
+
 ```json
 "exclude_ingredients": ["dairy", "milk", "gluten", "wheat"]
 ```
@@ -255,11 +257,13 @@ The following is the default configuration. It reflects the deploying preference
 **Changing cleanliness priorities** — to deprioritize organic and focus on additives only, simply remove or reorder items in the `priorities` array.
 
 **Changing response style** — to get a shorter, faster response while shopping:
+
 ```json
 "format": "short"
 ```
 
 **Changing default recommendation count:**
+
 ```json
 "default_count": 5
 ```
@@ -272,12 +276,12 @@ The following is the default configuration. It reflects the deploying preference
 
 Rather than asking Claude to rank products loosely, the prompt includes an explicit point-based scoring rubric derived from `dietary_preference_config.json`. This produces consistent, explainable results across calls and makes config changes feel meaningful. Default rubric:
 
-| Criterion | Deduction |
-|---|---|
-| Contains a seed oil | −40 points |
-| Contains an artificial additive or preservative | −40 points |
-| Not organic (when organic alternative exists) | −20 points |
-| More than 10 ingredients | −10 points per 5 ingredients over threshold |
+| Criterion                                       | Deduction                                   |
+| ----------------------------------------------- | ------------------------------------------- |
+| Contains a seed oil                             | −40 points                                  |
+| Contains an artificial additive or preservative | −40 points                                  |
+| Not organic (when organic alternative exists)   | −20 points                                  |
+| More than 10 ingredients                        | −10 points per 5 ingredients over threshold |
 
 Every product starts at 100. Final score drives the verdict: 80–100 = ✅ Very Clean, 50–79 = ⚠️ Acceptable, below 50 = ❌ Avoid.
 
@@ -290,6 +294,7 @@ Before any call to Claude, a Python pre-filter reads the ingredient list of each
 Claude is instructed to return a JSON array rather than a formatted message. Python then formats the final Telegram message from the parsed data. This gives full control over presentation, makes response style changes trivial, and makes errors immediately detectable.
 
 Expected Claude output format:
+
 ```json
 [
   {

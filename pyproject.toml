@@ -1,39 +1,49 @@
-[tool.poetry]
-name = "clean_grocery_bot"
+[project]
+name = "clean-grocery-bot"
 version = "0.0.1"
 description = "A serverless Telegram chatbot that helps you make cleaner food choices while grocery shopping. Search by product category and get AI-powered recommendations ranked by ingredient cleanliness — avoiding seed oils, artificial additives, and ultra-processed foods — based on your own configurable dietary preferences."
-authors = ["Stevin Wilson <stevinwilson@gmail.com>"]
-repository = "https://github.com/stevin-wilson/clean-grocery-bot"
-documentation = "https://stevin-wilson.github.io/clean-grocery-bot/"
+authors = [{name = "Stevin Wilson", email = "stevinwilson@gmail.com"}]
 readme = "README.md"
-packages = [
-  {include = "clean_grocery_bot"}
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "pydantic>=2.10",
+    "httpx>=0.28",
+    "boto3>=1.35",
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.8,<4.0"
+[project.urls]
+Repository = "https://github.com/stevin-wilson/clean-grocery-bot"
+Documentation = "https://stevin-wilson.github.io/clean-grocery-bot/"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.2.0"
-pytest-cov = "^4.0.0"
-deptry = "^0.16.2"
-pyright = "^1.1.382"
-pre-commit = "^3.4.0"
-tox = "^4.11.1"
-
-[tool.poetry.group.docs.dependencies]
-mkdocs = "^1.4.2"
-mkdocs-material = "^9.2.7"
-mkdocstrings = {extras = ["python"], version = "^0.26.1"}
+[dependency-groups]
+dev = [
+    "ruff>=0.9.6",
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "deptry>=0.22.0",
+    "pyright>=1.1.382",
+    "pre-commit>=4.0.0",
+    "tox>=4.11.1",
+    "tox-uv>=1.13.0",
+    "respx>=0.22.0",
+    "boto3-stubs[bedrock-runtime,ssm]>=1.35",
+]
+docs = [
+    "mkdocs>=1.4.2",
+    "mkdocs-material>=9.2.7",
+    "mkdocstrings[python]>=0.26.1",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-
+[tool.hatch.build.targets.wheel]
+packages = ["src/clean_grocery_bot"]
 
 [tool.pyright]
-include = ["clean_grocery_bot"]
+include = ["src/clean_grocery_bot"]
 typeCheckingMode = "strict"
 venvPath = "."
 venv = ".venv"
@@ -42,9 +52,11 @@ venv = ".venv"
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py312"
 line-length = 120
 fix = true
+
+[tool.ruff.lint]
 select = [
     # flake8-2020
     "YTT",
@@ -84,6 +96,9 @@ ignore = [
     "E731",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
 [tool.ruff.format]
 preview = true
 
@@ -92,8 +107,4 @@ skip_empty = true
 
 [tool.coverage.run]
 branch = true
-source = ["clean_grocery_bot"]
-
-
-[tool.ruff.per-file-ignores]
-"tests/*" = ["S101"]
+source = ["src/clean_grocery_bot"]

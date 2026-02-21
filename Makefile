@@ -1,42 +1,41 @@
 .PHONY: install
-install: ## Install the poetry environment and install the pre-commit hooks
-	@echo "🚀 Creating virtual environment using pyenv and poetry"
-	@poetry install
-	@ poetry run pre-commit install
-	@poetry shell
+install: ## Sync the uv environment and install the pre-commit hooks
+	@echo "🚀 Syncing virtual environment using uv"
+	@uv sync --all-groups
+	@uv run pre-commit install
 
 .PHONY: check
 check: ## Run code quality tools.
-	@echo "🚀 Checking Poetry lock file consistency with 'pyproject.toml': Running poetry check --lock"
-	@poetry check --lock
+	@echo "🚀 Checking lock file consistency: Running uv lock --check"
+	@uv lock --check
 	@echo "🚀 Linting code: Running pre-commit"
-	@poetry run pre-commit run -a
+	@uv run pre-commit run -a
 	@echo "🚀 Static type checking: Running pyright"
-	@poetry run pyright
+	@uv run pyright
 	@echo "🚀 Checking for obsolete dependencies: Running deptry"
-	@poetry run deptry .
+	@uv run deptry src
 
 .PHONY: test
 test: ## Test the code with pytest
 	@echo "🚀 Testing code: Running pytest"
-	@poetry run pytest --cov --cov-config=pyproject.toml --cov-report=xml
+	@uv run pytest --cov --cov-config=pyproject.toml --cov-report=xml
 
 .PHONY: build
-build: clean-build ## Build wheel file using poetry
+build: clean-build ## Build wheel file
 	@echo "🚀 Creating wheel file"
-	@poetry build
+	@uv build
 
 .PHONY: clean-build
-clean-build: ## clean build artifacts
+clean-build: ## Clean build artifacts
 	@rm -rf dist
 
 .PHONY: docs-test
 docs-test: ## Test if documentation can be built without warnings or errors
-	@poetry run mkdocs build -s
+	@uv run --group docs mkdocs build -s
 
 .PHONY: docs
 docs: ## Build and serve the documentation
-	@poetry run mkdocs serve
+	@uv run --group docs mkdocs serve
 
 .PHONY: help
 help:
