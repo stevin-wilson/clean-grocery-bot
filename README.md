@@ -6,6 +6,8 @@
 
 A serverless Telegram chatbot that recommends clean grocery products. Tell it a category — "yogurt", "top 5 crackers", "3 cereals" — and it searches Open Food Facts, filters out seed oils and artificial additives, then asks Claude AI to rank the survivors by ingredient cleanliness according to your own configurable priorities.
 
+**New to AWS or Telegram?** See the step-by-step [Getting Started guide](https://stevin-wilson.github.io/clean-grocery-bot/getting-started/) — it walks through every setup step from scratch, designed for users with no prior experience.
+
 ---
 
 ## How it works
@@ -23,13 +25,13 @@ User → Telegram → API Gateway → Lambda
                          │  pre_filter.py  │  remove seed oils, additives, user exclusions
                          └────────┬────────┘
                          ┌────────▼────────┐
-                         │  ai_ranker.py   │  Claude Haiku 4.5 on AWS Bedrock scores + ranks
+                         │  ai_ranker.py   │  Amazon Nova 2 Lite on AWS Bedrock scores + ranks
                          └────────┬────────┘
                                   │
                          format → send back to Telegram
 ```
 
-**Cost controls:** webhook (not polling) · serverless Lambda · Claude Haiku (cheapest model) · hard pre-filter before AI call · 20-product cap · no database
+**Cost controls:** webhook (not polling) · serverless Lambda · Amazon Nova 2 Lite (fast, low-cost model) · hard pre-filter before AI call · 20-product cap · no database
 
 ---
 
@@ -40,7 +42,7 @@ User → Telegram → API Gateway → Lambda
 - AWS account with access to:
   - Lambda
   - API Gateway
-  - AWS Bedrock (Claude Haiku 4.5 enabled in your region)
+  - AWS Bedrock (Amazon Nova 2 Lite, invoked via inference profile `us.amazon.nova-2-lite-v1:0`)
   - Systems Manager Parameter Store
   - CloudWatch
 - Telegram bot token (create via [@BotFather](https://t.me/botfather))

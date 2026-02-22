@@ -1,7 +1,6 @@
 {
     "_comment": "Clean Grocery Bot — Dietary Preference Config",
     "_instructions": "Edit this file to match your preferences. This file is loaded at runtime and passed to the AI prompt. No code changes needed.",
-
     "cleanliness_criteria": {
         "_comment": "Ordered list of criteria used to rank products. Higher priority items are weighted more heavily. Add, remove, or reorder to match your definition of clean.",
         "priorities": [
@@ -27,31 +26,26 @@
             }
         ]
     },
-
     "dietary_restrictions": {
         "_comment": "Hard filters — products containing any of these will be excluded from results entirely, regardless of cleanliness score. Add items to the list as needed (e.g. 'gluten', 'dairy', 'nuts', 'soy', 'shellfish').",
         "exclude_ingredients": []
     },
-
     "market": {
         "_comment": "Controls which country's products are returned by Open Food Facts. Use ISO 3166-1 alpha-2 country codes (e.g. 'US', 'GB', 'CA', 'AU', 'FR'). This filters results to products sold in that country, improving relevance.",
         "country": "US",
         "country_name": "United States"
     },
-
     "recommendations": {
         "_comment": "Default number of recommendations returned when the user does not specify a quantity. max_prefetch is the number of products fetched from Open Food Facts before pre-filtering — a larger number improves coverage but slightly increases Lambda execution time.",
         "default_count": 3,
         "max_count": 10,
         "max_prefetch": 20
     },
-
     "whole_food_fallback": {
         "_comment": "When enabled, the bot suggests a whole-food alternative if no sufficiently clean packaged product is found.",
         "enabled": true,
         "trigger": "no_clean_packaged_option"
     },
-
     "response": {
         "_comment": "Controls how the bot formats its replies.",
         "language": "English",

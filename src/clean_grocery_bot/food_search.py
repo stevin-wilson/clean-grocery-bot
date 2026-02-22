@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import httpx
 
@@ -39,7 +40,7 @@ def get_taxonomy_categories(search_term: str) -> list[str]:
             params={"tagtype": "categories", "string": search_term},
         )
         response.raise_for_status()
-        data: dict = response.json()
+        data: dict[str, Any] = response.json()
 
     suggestions: list[str] = data.get("suggestions", [])
     logger.info("Taxonomy lookup for %r returned %d suggestions", search_term, len(suggestions))

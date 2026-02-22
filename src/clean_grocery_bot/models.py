@@ -73,4 +73,4 @@ class RankedProduct(_BaseModel):
     brand: str
     score: int = Field(ge=0, le=100)
     verdict: Literal["Very Clean", "Acceptable", "Avoid"]
-    bullets: list[str] = Field(min_length=2, max_length=3)
+    bullets: list[str] = Field(min_length=1, max_length=7)

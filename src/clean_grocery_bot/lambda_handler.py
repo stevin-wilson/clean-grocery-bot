@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mypy_boto3_ssm import SSMClient
 
 import boto3
 import httpx
@@ -34,9 +37,12 @@ _VERDICT_EMOJI: dict[str, str] = {
 def _get_bot_token() -> str:
     global _bot_token
     if _bot_token is None:
-        ssm = boto3.client("ssm")
+        ssm: SSMClient = boto3.client("ssm")  # type: ignore[assignment]
         response = ssm.get_parameter(Name=_SSM_TELEGRAM_TOKEN, WithDecryption=True)
-        _bot_token = str(response["Parameter"]["Value"])
+        value = response["Parameter"].get("Value")
+        if value is None:
+            raise ValueError("SSM parameter has no Value")  # noqa: TRY003
+        _bot_token = str(value)
     return _bot_token
 
 
@@ -126,7 +132,9 @@ def handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         return {"statusCode": 200, "body": "OK"}
 
     message: dict[str, Any] = body.get("message") or {}
-    chat_id: int | None = (message.get("chat") or {}).get("id")
+    chat_obj: Any = message.get("chat") or {}
+    chat_raw: Any = chat_obj.get("id")
+    chat_id: int | None = int(chat_raw) if isinstance(chat_raw, int) else None
     text: str = (message.get("text") or "").strip()
 
     if not chat_id or not text:

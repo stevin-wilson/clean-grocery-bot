@@ -29,7 +29,10 @@ def _get_ssm_client() -> SSMClient:
 
 def _fetch_parameter(name: str) -> str:
     response = _get_ssm_client().get_parameter(Name=name, WithDecryption=True)
-    return str(response["Parameter"]["Value"])
+    value = response["Parameter"].get("Value")
+    if value is None:
+        raise ValueError(f"SSM parameter '{name}' has no Value")  # noqa: TRY003
+    return str(value)
 
 
 def verify_webhook_secret(event: dict[str, Any]) -> bool:

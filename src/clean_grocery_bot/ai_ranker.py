@@ -1,9 +1,10 @@
-"""AWS Bedrock Claude integration — ingredient-cleanliness scoring and ranking."""
+"""AWS Bedrock integration — ingredient-cleanliness scoring and ranking."""
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+import os
+from typing import TYPE_CHECKING, Any, cast
 
 import boto3
 from pydantic import TypeAdapter
@@ -15,8 +16,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0"
-_MAX_TOKENS = 2048
+_DEFAULT_MODEL_ID = "amazon.nova-2-lite-v1:0"
+_MAX_TOKENS = 4096
 
 _bedrock_client: BedrockRuntimeClient | None = None
 _ranked_product_list_adapter: TypeAdapter[list[RankedProduct]] = TypeAdapter(list[RankedProduct])
@@ -25,7 +26,7 @@ _ranked_product_list_adapter: TypeAdapter[list[RankedProduct]] = TypeAdapter(lis
 def _get_bedrock_client() -> BedrockRuntimeClient:
     global _bedrock_client
     if _bedrock_client is None:
-        _bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1")  # type: ignore[assignment]
+        _bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-2")  # type: ignore[assignment]
     return _bedrock_client
 
 
@@ -93,16 +94,34 @@ def rank_products(products: list[Product], config: DietaryConfig) -> list[Ranked
     prompt = _build_prompt(products, config)
     client = _get_bedrock_client()
 
-    response: dict[str, Any] = client.converse(
-        modelId=_MODEL_ID,
-        messages=[{"role": "user", "content": [{"text": prompt}]}],
-        inferenceConfig={"maxTokens": _MAX_TOKENS, "temperature": 0.0},
+    model_id = os.environ.get("BEDROCK_MODEL_ID", _DEFAULT_MODEL_ID)
+    response: dict[str, Any] = cast(
+        "dict[str, Any]",
+        client.converse(
+            modelId=model_id,
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": _MAX_TOKENS, "temperature": 0.0},
+        ),
     )
 
     output_text: str = response["output"]["message"]["content"][0]["text"]
-    logger.debug("Bedrock raw response: %s", output_text[:500])
+    logger.debug("Bedrock raw response (%d chars): %s", len(output_text), output_text[:500])
 
-    ranked = _ranked_product_list_adapter.validate_json(output_text)
+    # Strip markdown code fences that the model sometimes wraps around the JSON.
+    output_text = output_text.strip()
+    if output_text.startswith("```"):
+        output_text = output_text.split("\n", 1)[-1]
+        output_text = output_text.rsplit("```", 1)[0].strip()
+
+    try:
+        ranked = _ranked_product_list_adapter.validate_json(output_text)
+    except Exception:
+        # Log the end of the response to help diagnose truncation issues
+        logger.exception(
+            "Failed to parse AI ranker output (final 200 chars): ...%s",
+            output_text[-200:] if len(output_text) > 200 else output_text,
+        )
+        raise
     ranked.sort(key=lambda r: r.score, reverse=True)
 
     logger.info("ai_ranker scored %d products", len(ranked))

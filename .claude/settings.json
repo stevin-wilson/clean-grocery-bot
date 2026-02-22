@@ -1,0 +1,10 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(aws lambda update-function-configuration:*)",
+            "Bash(aws:*)",
+            "Read(//tmp/**)",
+            "Bash(curl:*)"
+        ]
+    }
+}
