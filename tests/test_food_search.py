@@ -125,3 +125,57 @@ def test_search_products_stops_at_max_across_categories() -> None:
     assert len(result) == 1
     # Only the first category should have been queried
     assert respx.calls.call_count == 1
+
+
+# --- Retry behaviour ---
+
+
+@respx.mock
+def test_get_taxonomy_categories_retries_on_timeout(mocker: pytest.fixture) -> None:  # type: ignore[type-arg]
+    """Should retry on ReadTimeout and succeed on the third attempt."""
+    mocker.patch("tenacity.nap.sleep")
+    respx.get(_TAXONOMY_URL).mock(
+        side_effect=[
+            httpx.ReadTimeout("timeout 1"),
+            httpx.ReadTimeout("timeout 2"),
+            httpx.Response(200, json={"suggestions": ["en:cereals"]}),
+        ]
+    )
+    result = get_taxonomy_categories("cereal")
+    assert result == ["en:cereals"]
+    assert respx.calls.call_count == 3
+
+
+@respx.mock
+def test_get_taxonomy_categories_raises_after_max_retries(mocker: pytest.fixture) -> None:  # type: ignore[type-arg]
+    """Should raise TimeoutException after exhausting all 3 attempts."""
+    mocker.patch("tenacity.nap.sleep")
+    respx.get(_TAXONOMY_URL).mock(side_effect=httpx.ReadTimeout("timeout"))
+    with pytest.raises(httpx.TimeoutException):
+        get_taxonomy_categories("cereal")
+    assert respx.calls.call_count == 3
+
+
+@respx.mock
+def test_get_taxonomy_categories_no_retry_on_http_error() -> None:
+    """Should NOT retry on HTTP 5xx — fails immediately after 1 attempt."""
+    respx.get(_TAXONOMY_URL).mock(return_value=httpx.Response(500))
+    with pytest.raises(httpx.HTTPStatusError):
+        get_taxonomy_categories("cereal")
+    assert respx.calls.call_count == 1
+
+
+@respx.mock
+def test_search_products_retries_on_timeout(mocker: pytest.fixture) -> None:  # type: ignore[type-arg]
+    """Should retry search_products on ReadTimeout and succeed on the third attempt."""
+    mocker.patch("tenacity.nap.sleep")
+    respx.get(_SEARCH_URL).mock(
+        side_effect=[
+            httpx.ReadTimeout("timeout 1"),
+            httpx.ReadTimeout("timeout 2"),
+            httpx.Response(200, json={"products": [_PRODUCT]}),
+        ]
+    )
+    result = search_products(["en:cereals"], "US")
+    assert len(result) == 1
+    assert respx.calls.call_count == 3

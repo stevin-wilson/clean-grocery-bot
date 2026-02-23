@@ -206,6 +206,13 @@ def handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         # Step 15 — send to user
         _send_telegram_message(chat_id, response_text, token)
 
+    except httpx.TimeoutException:
+        logger.warning("Timeout fetching data for chat %d, notifying user", chat_id)
+        _send_telegram_message(
+            chat_id,
+            "The grocery database is taking too long to respond. Please try again in a moment.",
+            token,
+        )
     except Exception:
         logger.exception("Unhandled error processing chat %d", chat_id)
         _send_telegram_message(chat_id, "Sorry, something went wrong. Please try again.", token)

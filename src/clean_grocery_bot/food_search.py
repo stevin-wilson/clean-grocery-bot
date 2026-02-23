@@ -6,6 +6,13 @@ import logging
 from typing import Any
 
 import httpx
+from tenacity import (
+    Retrying,
+    before_sleep_log,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from clean_grocery_bot.models import Product
 
@@ -15,6 +22,14 @@ _USER_AGENT = "CleanGroceryBot/1.0 (https://github.com/stevin-wilson/clean-groce
 _TAXONOMY_URL = "https://world.openfoodfacts.org/api/v3/taxonomy_suggestions"
 _SEARCH_URL = "https://world.openfoodfacts.net/api/v2/search"
 _SEARCH_FIELDS = "product_name,brands,ingredients_text,ingredients_tags"
+
+_RETRY_POLICY: dict[str, Any] = {
+    "stop": stop_after_attempt(3),
+    "wait": wait_exponential(multiplier=1, min=1, max=4),
+    "retry": retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+    "before_sleep": before_sleep_log(logger, logging.WARNING),
+    "reraise": True,
+}
 
 
 def get_taxonomy_categories(search_term: str) -> list[str]:
@@ -32,14 +47,16 @@ def get_taxonomy_categories(search_term: str) -> list[str]:
 
     Raises:
         httpx.HTTPStatusError: On non-2xx responses.
-        httpx.TimeoutException: If the request exceeds the timeout.
+        httpx.TimeoutException: If the request exceeds the timeout after all retries.
     """
-    with httpx.Client(timeout=10.0, headers={"User-Agent": _USER_AGENT}) as client:
-        response = client.get(
-            _TAXONOMY_URL,
-            params={"tagtype": "categories", "string": search_term},
-        )
-        response.raise_for_status()
+    with httpx.Client(timeout=15.0, headers={"User-Agent": _USER_AGENT}) as client:
+        for attempt in Retrying(**_RETRY_POLICY):
+            with attempt:
+                response = client.get(
+                    _TAXONOMY_URL,
+                    params={"tagtype": "categories", "string": search_term},
+                )
+                response.raise_for_status()
         data: dict[str, Any] = response.json()
 
     suggestions: list[str] = data.get("suggestions", [])
@@ -71,7 +88,7 @@ def search_products(
 
     Raises:
         httpx.HTTPStatusError: On non-2xx responses.
-        httpx.TimeoutException: If a request exceeds the timeout.
+        httpx.TimeoutException: If a request exceeds the timeout after all retries.
     """
     products: list[Product] = []
     country_tag = f"en:{country.lower()}"
@@ -81,17 +98,19 @@ def search_products(
             if len(products) >= max_results:
                 break
 
-            response = client.get(
-                _SEARCH_URL,
-                params={
-                    "categories_tags_en": category,
-                    "countries_tags": country_tag,
-                    "fields": _SEARCH_FIELDS,
-                    "page_size": max_results,
-                    "sort_by": "popularity_key",
-                },
-            )
-            response.raise_for_status()
+            for attempt in Retrying(**_RETRY_POLICY):
+                with attempt:
+                    response = client.get(
+                        _SEARCH_URL,
+                        params={
+                            "categories_tags_en": category,
+                            "countries_tags": country_tag,
+                            "fields": _SEARCH_FIELDS,
+                            "page_size": max_results,
+                            "sort_by": "popularity_key",
+                        },
+                    )
+                    response.raise_for_status()
             data = response.json()
 
             for item in data.get("products", []):
