@@ -50,6 +50,7 @@ def get_taxonomy_categories(search_term: str) -> list[str]:
         httpx.TimeoutException: If the request exceeds the timeout after all retries.
     """
     with httpx.Client(timeout=15.0, headers={"User-Agent": _USER_AGENT}) as client:
+        data: dict[str, Any] = {}
         for attempt in Retrying(**_RETRY_POLICY):
             with attempt:
                 response = client.get(
@@ -57,7 +58,7 @@ def get_taxonomy_categories(search_term: str) -> list[str]:
                     params={"tagtype": "categories", "string": search_term},
                 )
                 response.raise_for_status()
-        data: dict[str, Any] = response.json()
+                data = response.json()
 
     suggestions: list[str] = data.get("suggestions", [])
     logger.info("Taxonomy lookup for %r returned %d suggestions", search_term, len(suggestions))
@@ -98,6 +99,7 @@ def search_products(
             if len(products) >= max_results:
                 break
 
+            data: dict[str, Any] = {}
             for attempt in Retrying(**_RETRY_POLICY):
                 with attempt:
                     response = client.get(
@@ -111,7 +113,7 @@ def search_products(
                         },
                     )
                     response.raise_for_status()
-            data = response.json()
+                    data = response.json()
 
             for item in data.get("products", []):
                 if len(products) >= max_results:

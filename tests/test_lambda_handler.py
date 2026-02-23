@@ -8,6 +8,7 @@ import respx
 
 import clean_grocery_bot.lambda_handler as lambda_handler_module
 from clean_grocery_bot.lambda_handler import (
+    _format_label_response,
     _format_response,
     _get_bot_token,
     _parse_user_message,
@@ -17,6 +18,7 @@ from clean_grocery_bot.lambda_handler import (
 from clean_grocery_bot.models import (
     CleanlinessCriteria,
     DietaryConfig,
+    LabelAnalysis,
     Market,
     Priority,
     Product,
@@ -60,11 +62,39 @@ def _make_event(
     chat_id: int = 12345,
     secret: str = "correct-secret",  # noqa: S107
     body: str | None = None,
+    photo: list[dict] | None = None,
+    caption: str | None = None,
 ) -> dict:
     """Build a minimal API Gateway proxy event for handler() tests."""
     if body is None:
-        body = json.dumps({"message": {"chat": {"id": chat_id}, "text": text}})
+        message: dict[str, object] = {"chat": {"id": chat_id}}
+        if photo is not None:
+            message["photo"] = photo
+            if caption:
+                message["caption"] = caption
+        else:
+            message["text"] = text
+        body = json.dumps({"message": message})
     return {"headers": {"x-telegram-bot-api-secret-token": secret}, "body": body}
+
+
+def _make_label_analysis(**kwargs) -> LabelAnalysis:
+    defaults: dict = {
+        "product_name": "Test Bread",
+        "ingredients_text": "Whole wheat flour, water, salt",
+        "score": 85,
+        "verdict": "Very Clean",
+        "bullets": ["Simple ingredients", "No seed oils"],
+        "flags": [],
+    }
+    defaults.update(kwargs)
+    return LabelAnalysis(**defaults)
+
+
+_SAMPLE_PHOTO_LIST: list[dict] = [
+    {"file_id": "small_id", "width": 320, "height": 240},
+    {"file_id": "large_id", "width": 1280, "height": 960},
+]
 
 
 def _mock_pipeline(mocker, **overrides) -> dict:
@@ -88,6 +118,17 @@ def _mock_pipeline(mocker, **overrides) -> dict:
         "filter_products": mocker.patch("clean_grocery_bot.lambda_handler.filter_products", return_value=[product]),
         "rank_products": mocker.patch("clean_grocery_bot.lambda_handler.rank_products", return_value=[_make_ranked()]),
         "send_telegram": mocker.patch("clean_grocery_bot.lambda_handler._send_telegram_message"),
+        # Photo-path mocks
+        "download_photo": mocker.patch(
+            "clean_grocery_bot.lambda_handler._download_telegram_photo", return_value=b"fake-jpeg"
+        ),
+        "prepare_image": mocker.patch(
+            "clean_grocery_bot.lambda_handler.prepare_image_for_bedrock", return_value=(b"resized-jpeg", "jpeg")
+        ),
+        "analyze_label": mocker.patch(
+            "clean_grocery_bot.lambda_handler.analyze_label_image", return_value=_make_label_analysis()
+        ),
+        "send_typing": mocker.patch("clean_grocery_bot.lambda_handler._send_typing_indicator"),
     }
     for key, value in overrides.items():
         mocks[key].return_value = value
@@ -415,3 +456,149 @@ def test_handler_message_key_missing_returns_ok(mocker) -> None:
     result = handler(_make_event(body=body), context=None)
 
     assert result == {"statusCode": 200, "body": "OK"}
+
+
+# --- _format_label_response ---
+
+
+def test_format_label_response_contains_product_name() -> None:
+    analysis = _make_label_analysis(product_name="Organic Oats")
+    result = _format_label_response(analysis)
+    assert "Organic Oats" in result
+
+
+def test_format_label_response_contains_score_and_verdict() -> None:
+    analysis = _make_label_analysis(score=72, verdict="Acceptable")
+    result = _format_label_response(analysis)
+    assert "72/100" in result
+    assert "Acceptable" in result
+
+
+def test_format_label_response_contains_ingredients() -> None:
+    analysis = _make_label_analysis(ingredients_text="flour, water, yeast")
+    result = _format_label_response(analysis)
+    assert "flour, water, yeast" in result
+
+
+def test_format_label_response_contains_bullets() -> None:
+    analysis = _make_label_analysis(bullets=["No seed oils", "Short list"])
+    result = _format_label_response(analysis)
+    assert "No seed oils" in result
+    assert "Short list" in result
+
+
+def test_format_label_response_shows_flags() -> None:
+    analysis = _make_label_analysis(flags=["soybean oil", "BHT"])
+    result = _format_label_response(analysis)
+    assert "soybean oil" in result
+    assert "BHT" in result
+
+
+def test_format_label_response_no_flags_section_when_empty() -> None:
+    analysis = _make_label_analysis(flags=[])
+    result = _format_label_response(analysis)
+    assert "Flagged" not in result
+
+
+# --- handler() — photo message flow ---
+
+
+def test_handler_photo_happy_path(mocker) -> None:
+    mocks = _mock_pipeline(mocker)
+    event = _make_event(photo=_SAMPLE_PHOTO_LIST)
+
+    result = handler(event, context=None)
+
+    assert result == {"statusCode": 200, "body": "OK"}
+    mocks["download_photo"].assert_called_once()
+    mocks["prepare_image"].assert_called_once_with(b"fake-jpeg")
+    mocks["analyze_label"].assert_called_once()
+    mocks["send_telegram"].assert_called_once()
+    sent_text = mocks["send_telegram"].call_args.args[1]
+    assert "Test Bread" in sent_text
+    # Text pipeline should NOT be called
+    mocks["get_taxonomy_categories"].assert_not_called()
+
+
+def test_handler_photo_with_caption(mocker) -> None:
+    mocks = _mock_pipeline(mocker)
+    event = _make_event(photo=_SAMPLE_PHOTO_LIST, caption="organic bread")
+
+    handler(event, context=None)
+
+    mocks["analyze_label"].assert_called_once()
+    call_kwargs = mocks["analyze_label"].call_args
+    assert call_kwargs.args[3] == "organic bread" or call_kwargs.kwargs.get("caption") == "organic bread"
+
+
+def test_handler_photo_download_failure_sends_error(mocker) -> None:
+    mocks = _mock_pipeline(mocker)
+    mocks["download_photo"].side_effect = httpx.TimeoutException("timed out")
+    event = _make_event(photo=_SAMPLE_PHOTO_LIST)
+
+    result = handler(event, context=None)
+
+    assert result == {"statusCode": 200, "body": "OK"}
+    mocks["send_telegram"].assert_called_once()
+    sent_text = mocks["send_telegram"].call_args.args[1]
+    assert "couldn't download" in sent_text
+
+
+def test_handler_photo_invalid_image_sends_error(mocker) -> None:
+    mocks = _mock_pipeline(mocker)
+    mocks["prepare_image"].side_effect = ValueError("Could not decode image")
+    event = _make_event(photo=_SAMPLE_PHOTO_LIST)
+
+    result = handler(event, context=None)
+
+    assert result == {"statusCode": 200, "body": "OK"}
+    mocks["send_telegram"].assert_called_once()
+    sent_text = mocks["send_telegram"].call_args.args[1]
+    assert "couldn't process" in sent_text
+
+
+def test_handler_photo_unreadable_label_sends_error(mocker) -> None:
+    mocks = _mock_pipeline(mocker)
+    mocks["analyze_label"].return_value = _make_label_analysis(ingredients_text="")
+    event = _make_event(photo=_SAMPLE_PHOTO_LIST)
+
+    result = handler(event, context=None)
+
+    assert result == {"statusCode": 200, "body": "OK"}
+    mocks["send_telegram"].assert_called_once()
+    sent_text = mocks["send_telegram"].call_args.args[1]
+    assert "couldn't read" in sent_text
+
+
+def test_handler_photo_bedrock_error_sends_generic_error(mocker) -> None:
+    mocks = _mock_pipeline(mocker)
+    mocks["analyze_label"].side_effect = RuntimeError("Bedrock error")
+    event = _make_event(photo=_SAMPLE_PHOTO_LIST)
+
+    result = handler(event, context=None)
+
+    assert result == {"statusCode": 200, "body": "OK"}
+    mocks["send_telegram"].assert_called_once()
+    sent_text = mocks["send_telegram"].call_args.args[1]
+    assert "something went wrong" in sent_text
+
+
+def test_handler_text_still_works_after_photo_support(mocker) -> None:
+    """Regression test: text messages still follow the original pipeline."""
+    mocks = _mock_pipeline(mocker)
+
+    result = handler(_make_event(text="cereal"), context=None)
+
+    assert result == {"statusCode": 200, "body": "OK"}
+    mocks["get_taxonomy_categories"].assert_called_once_with("cereal")
+    mocks["rank_products"].assert_called_once()
+    mocks["download_photo"].assert_not_called()
+
+
+def test_handler_photo_sends_typing_indicator(mocker) -> None:
+    mocks = _mock_pipeline(mocker)
+    event = _make_event(photo=_SAMPLE_PHOTO_LIST)
+
+    handler(event, context=None)
+
+    mocks["send_typing"].assert_called_once()

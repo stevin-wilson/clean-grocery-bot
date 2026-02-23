@@ -6,10 +6,11 @@ import pytest
 from pydantic import ValidationError
 
 import clean_grocery_bot.ai_ranker as ai_ranker_module
-from clean_grocery_bot.ai_ranker import _build_prompt, rank_products
+from clean_grocery_bot.ai_ranker import _build_label_prompt, _build_prompt, analyze_label_image, rank_products
 from clean_grocery_bot.models import (
     CleanlinessCriteria,
     DietaryConfig,
+    LabelAnalysis,
     Market,
     Priority,
     Product,
@@ -131,3 +132,119 @@ def test_rank_products_invalid_verdict_raises(mocker) -> None:
     _mock_bedrock(mocker, bad_response)
     with pytest.raises(ValidationError):
         rank_products([_make_product()], CONFIG)
+
+
+# --- _build_label_prompt ---
+
+
+def test_build_label_prompt_includes_rubric_priorities() -> None:
+    prompt = _build_label_prompt(CONFIG)
+    assert "No seed oils" in prompt
+    assert "No additives" in prompt
+
+
+def test_build_label_prompt_includes_caption_when_provided() -> None:
+    prompt = _build_label_prompt(CONFIG, caption="This is organic bread")
+    assert "This is organic bread" in prompt
+
+
+def test_build_label_prompt_omits_caption_when_none() -> None:
+    prompt = _build_label_prompt(CONFIG)
+    assert "User note:" not in prompt
+
+
+def test_build_label_prompt_requests_json_output() -> None:
+    prompt = _build_label_prompt(CONFIG)
+    assert "JSON" in prompt
+    assert "product_name" in prompt
+    assert "ingredients_text" in prompt
+
+
+# --- analyze_label_image ---
+
+
+VALID_LABEL_ANALYSIS = {
+    "product_name": "Test Bread",
+    "ingredients_text": "Whole wheat flour, water, salt",
+    "score": 85,
+    "verdict": "Very Clean",
+    "bullets": ["Simple ingredients", "No seed oils"],
+    "flags": [],
+}
+
+
+def _mock_bedrock_label(mocker, response_json: dict) -> None:
+    mock_client = mocker.MagicMock()
+    mock_client.converse.return_value = {"output": {"message": {"content": [{"text": json.dumps(response_json)}]}}}
+    mocker.patch.object(ai_ranker_module, "_get_bedrock_client", return_value=mock_client)
+
+
+def test_analyze_label_image_success(mocker) -> None:
+    _mock_bedrock_label(mocker, VALID_LABEL_ANALYSIS)
+    result = analyze_label_image(b"fake-jpeg", "jpeg", CONFIG)
+    assert isinstance(result, LabelAnalysis)
+    assert result.product_name == "Test Bread"
+    assert result.score == 85
+    assert result.verdict == "Very Clean"
+
+
+def test_analyze_label_image_with_caption(mocker) -> None:
+    mock_client = mocker.MagicMock()
+    mock_client.converse.return_value = {
+        "output": {"message": {"content": [{"text": json.dumps(VALID_LABEL_ANALYSIS)}]}}
+    }
+    mocker.patch.object(ai_ranker_module, "_get_bedrock_client", return_value=mock_client)
+
+    analyze_label_image(b"fake-jpeg", "jpeg", CONFIG, caption="organic bread")
+
+    # Verify caption was included in the prompt
+    call_args = mock_client.converse.call_args
+    message_content = call_args.kwargs["messages"][0]["content"]
+    prompt_text = message_content[1]["text"]
+    assert "organic bread" in prompt_text
+
+
+def test_analyze_label_image_strips_markdown_fences(mocker) -> None:
+    wrapped = f"```json\n{json.dumps(VALID_LABEL_ANALYSIS)}\n```"
+    mock_client = mocker.MagicMock()
+    mock_client.converse.return_value = {"output": {"message": {"content": [{"text": wrapped}]}}}
+    mocker.patch.object(ai_ranker_module, "_get_bedrock_client", return_value=mock_client)
+
+    result = analyze_label_image(b"fake-jpeg", "jpeg", CONFIG)
+    assert result.product_name == "Test Bread"
+
+
+def test_analyze_label_image_sends_image_content_block(mocker) -> None:
+    mock_client = mocker.MagicMock()
+    mock_client.converse.return_value = {
+        "output": {"message": {"content": [{"text": json.dumps(VALID_LABEL_ANALYSIS)}]}}
+    }
+    mocker.patch.object(ai_ranker_module, "_get_bedrock_client", return_value=mock_client)
+
+    analyze_label_image(b"fake-jpeg-bytes", "jpeg", CONFIG)
+
+    call_args = mock_client.converse.call_args
+    message_content = call_args.kwargs["messages"][0]["content"]
+    assert message_content[0] == {"image": {"format": "jpeg", "source": {"bytes": b"fake-jpeg-bytes"}}}
+
+
+def test_analyze_label_image_invalid_json_raises(mocker) -> None:
+    mock_client = mocker.MagicMock()
+    mock_client.converse.return_value = {"output": {"message": {"content": [{"text": "not json"}]}}}
+    mocker.patch.object(ai_ranker_module, "_get_bedrock_client", return_value=mock_client)
+    with pytest.raises(ValidationError):
+        analyze_label_image(b"fake-jpeg", "jpeg", CONFIG)
+
+
+def test_analyze_label_image_invalid_score_raises(mocker) -> None:
+    bad = {**VALID_LABEL_ANALYSIS, "score": 150}
+    _mock_bedrock_label(mocker, bad)
+    with pytest.raises(ValidationError):
+        analyze_label_image(b"fake-jpeg", "jpeg", CONFIG)
+
+
+def test_analyze_label_image_invalid_verdict_raises(mocker) -> None:
+    bad = {**VALID_LABEL_ANALYSIS, "verdict": "Pretty Good"}
+    _mock_bedrock_label(mocker, bad)
+    with pytest.raises(ValidationError):
+        analyze_label_image(b"fake-jpeg", "jpeg", CONFIG)

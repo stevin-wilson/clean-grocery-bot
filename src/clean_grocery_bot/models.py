@@ -74,3 +74,14 @@ class RankedProduct(_BaseModel):
     score: int = Field(ge=0, le=100)
     verdict: Literal["Very Clean", "Acceptable", "Avoid"]
     bullets: list[str] = Field(min_length=1, max_length=7)
+
+
+class LabelAnalysis(_BaseModel):
+    """Result of analyzing an ingredient label photo."""
+
+    product_name: str = "Unknown"
+    ingredients_text: str
+    score: int = Field(ge=0, le=100)
+    verdict: Literal["Very Clean", "Acceptable", "Avoid"]
+    bullets: list[str] = Field(min_length=1, max_length=7)
+    flags: list[str] = Field(default_factory=list)
