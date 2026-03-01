@@ -10,6 +10,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Lambda build artifact
+lambda-package.zip
+
 # Distribution / packaging
 .Python
 build/
@@ -141,11 +144,15 @@ venv.bak/
 
 # mkdocs documentation
 /site
+node_modules/
 
 # mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# ruff
+.ruff_cache/
 
 # Pyre type checker
 .pyre/

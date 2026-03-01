@@ -51,5 +51,9 @@
         "language": "English",
         "format": "medium",
         "_format_options": "short (name + one line) | medium (name + 2-3 bullets) | detailed (full ingredient breakdown)"
+    },
+    "household": {
+        "_comment": "Optional household member profiles in natural language. The AI uses these to flag ingredients specifically risky for any member. Leave members empty to disable personalised flagging.",
+        "members": []
     }
 }

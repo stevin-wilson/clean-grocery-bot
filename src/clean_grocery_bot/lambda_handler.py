@@ -86,6 +86,10 @@ def _format_response(ranked: list[RankedProduct], search_term: str, config: Diet
         lines.append(f"   {emoji} {product.verdict} — Score: {product.score}/100")
         for bullet in product.bullets:
             lines.append(f"   • {bullet}")
+        if product.harms:
+            lines.append("   *Evidence:*")
+            for harm in product.harms:
+                lines.append(f"   ⚠ *{harm.ingredient}:* {harm.evidence}")
         lines.append("")
     return "\n".join(lines)
 
@@ -143,15 +147,27 @@ def _format_label_response(analysis: LabelAnalysis) -> str:
     """Render a label analysis as a Telegram Markdown message."""
     emoji = _VERDICT_EMOJI.get(analysis.verdict, "")
     lines: list[str] = [
-        "*Ingredient Label Analysis*\n",
+        f"{emoji} *{analysis.verdict}* — {analysis.score}/100",
+        "",
+        "*Ingredient Label Analysis*",
+        "",
         f"*Product:* {analysis.product_name}",
-        f"Score: {analysis.score}/100 — {emoji} {analysis.verdict}\n",
-        f"*Extracted ingredients:* {analysis.ingredients_text}\n",
+        f"Score: {analysis.score}/100 — {emoji} {analysis.verdict}",
+        f"*Extracted ingredients:* {analysis.ingredients_text}",
+        "",
     ]
     for bullet in analysis.bullets:
         lines.append(f"• {bullet}")
+    if analysis.harms:
+        lines.append("")
+        lines.append("*Clinical/Academic Evidence:*")
+        for harm in analysis.harms:
+            lines.append(f"  ⚠ *{harm.ingredient}:* {harm.evidence}")
     if analysis.flags:
-        lines.append(f"\n{emoji} *Flagged:* {', '.join(analysis.flags)}")
+        lines.append("")
+        lines.append(f"{emoji} *Flagged:* {', '.join(analysis.flags)}")
+    lines.append("")
+    lines.append(f"{emoji} *{analysis.verdict}* — {analysis.score}/100")
     return "\n".join(lines)
 
 

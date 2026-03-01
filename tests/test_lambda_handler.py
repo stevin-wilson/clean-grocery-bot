@@ -18,6 +18,7 @@ from clean_grocery_bot.lambda_handler import (
 from clean_grocery_bot.models import (
     CleanlinessCriteria,
     DietaryConfig,
+    IngredientHarm,
     LabelAnalysis,
     Market,
     Priority,
@@ -43,6 +44,7 @@ def _make_ranked(name: str = "Oat Flakes", score: int = 90, verdict: str = "Very
         score=score,
         verdict=verdict,  # type: ignore[arg-type]
         bullets=["Clean ingredients", "Short list"],
+        harms=[],
     )
 
 
@@ -86,6 +88,7 @@ def _make_label_analysis(**kwargs) -> LabelAnalysis:
         "verdict": "Very Clean",
         "bullets": ["Simple ingredients", "No seed oils"],
         "flags": [],
+        "harms": [],
     }
     defaults.update(kwargs)
     return LabelAnalysis(**defaults)
@@ -498,6 +501,48 @@ def test_format_label_response_no_flags_section_when_empty() -> None:
     analysis = _make_label_analysis(flags=[])
     result = _format_label_response(analysis)
     assert "Flagged" not in result
+
+
+def test_format_label_response_verdict_at_top_and_bottom() -> None:
+    analysis = _make_label_analysis(verdict="Very Clean", score=85)
+    result = _format_label_response(analysis)
+    non_empty_lines = [line for line in result.split("\n") if line.strip()]
+    assert "Very Clean" in non_empty_lines[0]
+    assert "Very Clean" in non_empty_lines[-1]
+
+
+def test_format_label_response_shows_harms_section() -> None:
+    analysis = _make_label_analysis(harms=[IngredientHarm(ingredient="soybean oil", evidence="raises LDL cholesterol")])
+    result = _format_label_response(analysis)
+    assert "Clinical" in result
+    assert "soybean oil" in result
+    assert "raises LDL cholesterol" in result
+
+
+def test_format_label_response_no_harms_section_when_empty() -> None:
+    analysis = _make_label_analysis(harms=[])
+    result = _format_label_response(analysis)
+    assert "Clinical" not in result
+
+
+def test_format_response_shows_harms_when_present() -> None:
+    product = RankedProduct(
+        name="Bad Cereal",
+        brand="Junk Co",
+        score=30,
+        verdict="Avoid",
+        bullets=["Contains seed oils"],
+        harms=[IngredientHarm(ingredient="soybean oil", evidence="raises LDL cholesterol")],
+    )
+    result = _format_response([product], "cereal", CONFIG)
+    assert "soybean oil" in result
+    assert "raises LDL cholesterol" in result
+
+
+def test_format_response_no_evidence_section_when_empty() -> None:
+    ranked = [_make_ranked()]
+    result = _format_response(ranked, "cereal", CONFIG)
+    assert "Evidence" not in result
 
 
 # --- handler() — photo message flow ---

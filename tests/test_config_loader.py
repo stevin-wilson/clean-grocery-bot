@@ -52,6 +52,7 @@ def test_load_config_defaults(tmp_path: Path) -> None:
     assert config.whole_food_fallback.enabled is True
     assert config.response.language == "English"
     assert config.dietary_restrictions.exclude_ingredients == []
+    assert config.household.members == []
 
 
 def test_load_config_with_custom_exclusions(tmp_path: Path) -> None:
@@ -123,3 +124,18 @@ def test_load_config_caches_result(tmp_path: Path) -> None:
     first = load_config(str(p))
     second = load_config(str(p))
     assert first is second
+
+
+def test_load_config_with_household_members(tmp_path: Path) -> None:
+    data = {**MINIMAL_VALID, "household": {"members": ["Adult, 45, Type 2 diabetes", "Child, 8"]}}
+    p = _write_config(tmp_path, data)
+    config = load_config(str(p))
+    assert config.household.members == ["Adult, 45, Type 2 diabetes", "Child, 8"]
+
+
+def test_load_config_with_household_comment_ignored(tmp_path: Path) -> None:
+    """_comment key inside household is silently dropped by extra='ignore'."""
+    data = {**MINIMAL_VALID, "household": {"_comment": "ignored comment", "members": ["Adult, 50"]}}
+    p = _write_config(tmp_path, data)
+    config = load_config(str(p))
+    assert config.household.members == ["Adult, 50"]

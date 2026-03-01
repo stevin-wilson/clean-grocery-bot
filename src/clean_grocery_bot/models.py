@@ -46,6 +46,15 @@ class ResponseConfig(_BaseModel):
     format: str = "medium"
 
 
+class HouseholdConfig(_BaseModel):
+    members: list[str] = Field(default_factory=list)
+
+
+class IngredientHarm(_BaseModel):
+    ingredient: str
+    evidence: str  # plain health-claim, e.g. "increases risk of high blood pressure"
+
+
 class DietaryConfig(_BaseModel):
     """Top-level config parsed from dietary_preference_config.json."""
 
@@ -55,6 +64,7 @@ class DietaryConfig(_BaseModel):
     recommendations: Recommendations = Field(default_factory=Recommendations)
     whole_food_fallback: WholeFoodFallback = Field(default_factory=WholeFoodFallback)
     response: ResponseConfig = Field(default_factory=ResponseConfig)
+    household: HouseholdConfig = Field(default_factory=HouseholdConfig)
 
 
 class Product(_BaseModel):
@@ -74,6 +84,7 @@ class RankedProduct(_BaseModel):
     score: int = Field(ge=0, le=100)
     verdict: Literal["Very Clean", "Acceptable", "Avoid"]
     bullets: list[str] = Field(min_length=1, max_length=7)
+    harms: list[IngredientHarm] = Field(default_factory=lambda: [])
 
 
 class LabelAnalysis(_BaseModel):
@@ -84,4 +95,5 @@ class LabelAnalysis(_BaseModel):
     score: int = Field(ge=0, le=100)
     verdict: Literal["Very Clean", "Acceptable", "Avoid"]
     bullets: list[str] = Field(min_length=1, max_length=7)
+    harms: list[IngredientHarm] = Field(default_factory=lambda: [])
     flags: list[str] = Field(default_factory=list)
