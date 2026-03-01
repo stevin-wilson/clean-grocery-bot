@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_OCR_MODEL_ID = "amazon.nova-2-lite-v1:0"
+_DEFAULT_OCR_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
 _DEFAULT_SCORING_MODEL_ID = "us.anthropic.claude-sonnet-4-6"
 _MAX_TOKENS = 4096
 
@@ -37,7 +37,8 @@ _ocr_result_adapter: TypeAdapter[_OcrResult] = TypeAdapter(_OcrResult)
 def _get_bedrock_client() -> BedrockRuntimeClient:
     global _bedrock_client
     if _bedrock_client is None:
-        _bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-2")  # type: ignore[assignment]
+        region = os.environ.get("BEDROCK_REGION", "us-east-2")
+        _bedrock_client = boto3.client("bedrock-runtime", region_name=region)  # type: ignore[assignment]
     return _bedrock_client
 
 

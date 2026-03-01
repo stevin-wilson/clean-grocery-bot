@@ -59,7 +59,7 @@ Telegram → API Gateway → Lambda handler
 
 ### AWS integrations
 
-- **Bedrock**: two models via `client.converse()`; region `us-east-2`
+- **Bedrock**: two models via `client.converse()`; region `us-east-2` — overridable via `BEDROCK_REGION`
   - OCR (photo Call 1): `us.amazon.nova-2-lite-v1:0` — overridable via `BEDROCK_OCR_MODEL_ID`
   - Scoring (photo Call 2 + text ranking): `us.anthropic.claude-sonnet-4-6` — overridable via `BEDROCK_SCORING_MODEL_ID`
 - **SSM Parameter Store** paths: `/clean-grocery-bot/telegram-token`, `/clean-grocery-bot/webhook-secret`, `/clean-grocery-bot/allowed-chat-ids`
