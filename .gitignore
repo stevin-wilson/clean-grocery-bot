@@ -175,3 +175,6 @@ cython_debug/
 
 # Claude Code
 .claude/settings.local.json
+
+# Private local config (gitignored — use dietary_preference_config.local.json for personal overrides)
+dietary_preference_config.local.json

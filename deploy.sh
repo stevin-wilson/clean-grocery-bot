@@ -62,8 +62,13 @@ rm -rf \
 echo "==> Copying source package..."
 cp -r src/clean_grocery_bot "${BUILD_DIR}/"
 
-echo "==> Copying dietary_preference_config.json..."
-cp dietary_preference_config.json "${BUILD_DIR}/"
+if [ -f "dietary_preference_config.local.json" ]; then
+    echo "==> Bundling private dietary_preference_config.local.json..."
+    cp dietary_preference_config.local.json "${BUILD_DIR}/dietary_preference_config.json"
+else
+    echo "==> Bundling vanilla dietary_preference_config.json..."
+    cp dietary_preference_config.json "${BUILD_DIR}/"
+fi
 
 echo "==> Creating zip archive..."
 python3 -c "
