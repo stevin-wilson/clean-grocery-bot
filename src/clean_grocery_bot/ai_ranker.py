@@ -16,7 +16,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL_ID = "amazon.nova-2-lite-v1:0"
+_DEFAULT_OCR_MODEL_ID = "amazon.nova-2-lite-v1:0"
+_DEFAULT_SCORING_MODEL_ID = "us.anthropic.claude-sonnet-4-6"
 _MAX_TOKENS = 4096
 
 _bedrock_client: BedrockRuntimeClient | None = None
@@ -119,11 +120,11 @@ def rank_products(products: list[Product], config: DietaryConfig) -> list[Ranked
     prompt = _build_prompt(products, config)
     client = _get_bedrock_client()
 
-    model_id = os.environ.get("BEDROCK_MODEL_ID", _DEFAULT_MODEL_ID)
+    scoring_model_id = os.environ.get("BEDROCK_SCORING_MODEL_ID", _DEFAULT_SCORING_MODEL_ID)
     response: dict[str, Any] = cast(
         "dict[str, Any]",
         client.converse(
-            modelId=model_id,
+            modelId=scoring_model_id,
             messages=[{"role": "user", "content": [{"text": prompt}]}],
             inferenceConfig={"maxTokens": _MAX_TOKENS, "temperature": 0.0},
         ),
@@ -280,10 +281,11 @@ def analyze_label_image(
         botocore.exceptions.ClientError: On Bedrock API errors.
     """
     client = _get_bedrock_client()
-    model_id = os.environ.get("BEDROCK_MODEL_ID", _DEFAULT_MODEL_ID)
+    ocr_model_id = os.environ.get("BEDROCK_OCR_MODEL_ID", _DEFAULT_OCR_MODEL_ID)
+    scoring_model_id = os.environ.get("BEDROCK_SCORING_MODEL_ID", _DEFAULT_SCORING_MODEL_ID)
 
     # Call 1: OCR — extract product name and ingredients text from the image.
-    ocr_product_name, ocr_ingredients_text = _extract_ingredients_text(image_bytes, image_format, client, model_id)
+    ocr_product_name, ocr_ingredients_text = _extract_ingredients_text(image_bytes, image_format, client, ocr_model_id)
 
     # Call 2: Text-only scoring using the extracted ingredients.
     label_prompt = _build_label_prompt(config, caption)
@@ -292,7 +294,7 @@ def analyze_label_image(
     response: dict[str, Any] = cast(
         "dict[str, Any]",
         client.converse(
-            modelId=model_id,
+            modelId=scoring_model_id,
             messages=[{"role": "user", "content": [{"text": augmented_prompt}]}],
             inferenceConfig={"maxTokens": _MAX_TOKENS, "temperature": 0.0},
         ),

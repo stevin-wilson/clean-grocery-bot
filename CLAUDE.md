@@ -34,7 +34,7 @@ Telegram → API Gateway → Lambda handler
   → security.py     (verify webhook secret + chat whitelist from SSM Parameter Store)
   → food_search.py  (Open Food Facts taxonomy lookup + product search)
   → pre_filter.py   (hard exclude seed oils, artificial additives, user exclusions)
-  → ai_ranker.py    (Amazon Nova 2 Lite on Bedrock scores + ranks; photo messages use multimodal analysis)
+  → ai_ranker.py    (Bedrock scores + ranks; OCR via Nova 2 Lite, scoring via Claude Sonnet 4.6; photo messages use multimodal analysis)
   → lambda_handler  (format and send back to Telegram)
 ```
 
@@ -59,7 +59,9 @@ Telegram → API Gateway → Lambda handler
 
 ### AWS integrations
 
-- **Bedrock**: `amazon.nova-2-lite-v1:0` via `client.converse()` (overridable via `BEDROCK_MODEL_ID` env var); region `us-east-2`
+- **Bedrock**: two models via `client.converse()`; region `us-east-2`
+  - OCR (photo Call 1): `us.amazon.nova-2-lite-v1:0` — overridable via `BEDROCK_OCR_MODEL_ID`
+  - Scoring (photo Call 2 + text ranking): `us.anthropic.claude-sonnet-4-6` — overridable via `BEDROCK_SCORING_MODEL_ID`
 - **SSM Parameter Store** paths: `/clean-grocery-bot/telegram-token`, `/clean-grocery-bot/webhook-secret`, `/clean-grocery-bot/allowed-chat-ids`
 - Lambda handler is `clean_grocery_bot.lambda_handler.handler`; always returns HTTP 200 to avoid Telegram retries
 
